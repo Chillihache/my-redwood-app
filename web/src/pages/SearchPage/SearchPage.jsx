@@ -1,8 +1,8 @@
-import { useState } from 'react'
 import { navigate, routes } from '@redwoodjs/router'
 import { Metadata } from '@redwoodjs/web'
 import { useQuery, gql } from '@redwoodjs/web'
 import { useAuth } from 'src/auth'
+import { useState, useEffect } from 'react'
 
 const GET_SEARCHES = gql`
   query GetSearches {
@@ -19,15 +19,21 @@ const GET_SEARCHES = gql`
 `
 
 const SearchPage = () => {
-  const { currentUser, logOut } = useAuth()
+  const { loading } = useAuth()
+  const { currentUser } = useAuth()
   const [keywords, setKeywords] = useState('')
   const [location, setLocation] = useState('')
 
-  const { data, loading } = useQuery(GET_SEARCHES)
+  useEffect(() => {
+    if (!loading && !currentUser) {
+      navigate(routes.login())
+    }
+  }, [currentUser, loading])
+
+  const { data, loading: searchesLoading } = useQuery(GET_SEARCHES)
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    // On branchera Serper.dev ici plus tard
     console.log('Recherche:', keywords, location)
   }
 
@@ -36,6 +42,7 @@ const SearchPage = () => {
     return date.toLocaleDateString('fr-FR', {
       day: 'numeric',
       month: 'short',
+      year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
     })
@@ -44,42 +51,8 @@ const SearchPage = () => {
   return (
     <>
       <Metadata title="Recherche" />
-
-      {/* Header */}
-      <header style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '16px 32px',
-        borderBottom: '1px solid #e5e7eb',
-        backgroundColor: '#fff',
-      }}>
-        <h1 style={{ margin: 0, fontSize: '20px', fontWeight: 'bold' }}>
-          LinkedIn Search
-        </h1>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <span style={{ color: '#6b7280', fontSize: '14px' }}>
-            {currentUser?.email}
-          </span>
-          <button
-            onClick={logOut}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: '#f3f4f6',
-              border: '1px solid #e5e7eb',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '14px',
-            }}
-          >
-            Déconnexion
-          </button>
-        </div>
-      </header>
-
       <main style={{ maxWidth: '800px', margin: '32px auto', padding: '0 16px' }}>
 
-        {/* Formulaire de recherche */}
         <form onSubmit={handleSubmit} style={{
           display: 'flex',
           gap: '12px',
@@ -129,15 +102,14 @@ const SearchPage = () => {
           </button>
         </form>
 
-        {/* Liste des recherches */}
         <div>
           <h2 style={{ fontSize: '16px', color: '#6b7280', marginBottom: '16px' }}>
             Recherches récentes
           </h2>
 
-          {loading && <p style={{ color: '#6b7280' }}>Chargement...</p>}
+          {searchesLoading && <p style={{ color: '#6b7280' }}>Chargement...</p>}
 
-          {!loading && data?.searches?.length === 0 && (
+          {!searchesLoading && data?.searches?.length === 0 && (
             <p style={{ color: '#6b7280' }}>Aucune recherche pour l'instant.</p>
           )}
 

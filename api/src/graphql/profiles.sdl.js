@@ -11,7 +11,8 @@ export const schema = gql`
   }
 
   type Query {
-    profiles: [Profile!]! @requireAuth
+    profiles(searchId: Int!, skip: Int, take: Int): [Profile!]! @requireAuth
+    profilesCount(searchId: Int!): Int! @requireAuth
     profile(id: Int!): Profile @requireAuth
   }
 

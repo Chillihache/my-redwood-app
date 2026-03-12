@@ -1,7 +1,18 @@
 import { db } from 'src/lib/db'
 
-export const profiles = () => {
-  return db.profile.findMany()
+export const profiles = ({ searchId, skip = 0, take = 20 }) => {
+  return db.profile.findMany({
+    where: { searchId },
+    skip,
+    take,
+    orderBy: { createdAt: 'asc' },
+  })
+}
+
+export const profilesCount = ({ searchId }) => {
+  return db.profile.count({
+    where: { searchId },
+  })
 }
 
 export const profile = ({ id }) => {
