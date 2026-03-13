@@ -47,15 +47,10 @@ Créer un fichier `.env` à la racine du projet et remplir les valeurs (voir sec
 ```bash
 yarn rw prisma migrate dev
 ```
+Lance automatiquement le seed.
+Crée 1 utilisateur de test, 5 utilisateurs fictifs, 100 recherches et 1 000 profils
 
-### 5. Lancer le seed
-```bash
-yarn rw prisma db seed
-```
-
-Crée 1 utilisateur de test, 5 utilisateurs fictifs, 100 recherches et plus de 1 000 profils.
-
-### 6. Démarrer l'application
+### 5. Démarrer l'application
 ```bash
 yarn rw dev
 ```
