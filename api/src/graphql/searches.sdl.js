@@ -35,5 +35,7 @@ export const schema = gql`
     createSearch(input: CreateSearchInput!): Search! @requireAuth
     updateSearch(id: Int!, input: UpdateSearchInput!): Search! @requireAuth
     deleteSearch(id: Int!): Search! @requireAuth
+    scrapeNextPages(searchId: Int!): Int! @requireAuth
+    resetAndScrape(searchId: Int!): Int! @requireAuth
   }
 `

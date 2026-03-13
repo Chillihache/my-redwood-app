@@ -1,6 +1,6 @@
 import { navigate, routes } from '@redwoodjs/router'
 import { Metadata } from '@redwoodjs/web'
-import { useQuery, gql } from '@redwoodjs/web'
+import { useQuery, useMutation, gql } from '@redwoodjs/web'
 import { useAuth } from 'src/auth'
 import { useState, useEffect } from 'react'
 
@@ -18,11 +18,27 @@ const GET_SEARCHES = gql`
   }
 `
 
+const CREATE_SEARCH = gql`
+  mutation CreateSearch($input: CreateSearchInput!) {
+    createSearch(input: $input) {
+      id
+      keywords
+      location
+    }
+  }
+`
+
+const SCRAPE = gql`
+  mutation ScrapeNextPages($searchId: Int!) {
+    scrapeNextPages(searchId: $searchId)
+  }
+`
+
 const SearchPage = () => {
-  const { loading } = useAuth()
-  const { currentUser } = useAuth()
+  const { loading, currentUser } = useAuth()
   const [keywords, setKeywords] = useState('')
   const [location, setLocation] = useState('')
+  const [searchingId, setSearchingId] = useState(null)
 
   useEffect(() => {
     if (!loading && !currentUser) {
@@ -30,11 +46,42 @@ const SearchPage = () => {
     }
   }, [currentUser, loading])
 
-  const { data, loading: searchesLoading } = useQuery(GET_SEARCHES)
+  const { data, loading: searchesLoading, refetch } = useQuery(GET_SEARCHES)
 
-  const handleSubmit = (e) => {
+  const [createSearch] = useMutation(CREATE_SEARCH)
+  const [scrapeNextPages] = useMutation(SCRAPE)
+
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    console.log('Recherche:', keywords, location)
+    if (!keywords) return
+
+    // 1. Créer la recherche en DB
+    const { data: newSearch } = await createSearch({
+      variables: {
+        input: {
+          keywords,
+          location: location || null,
+          userId: currentUser.id,
+        },
+      },
+    })
+
+    const searchId = newSearch.createSearch.id
+    setSearchingId(searchId)
+
+    // 2. Rafraîchir la liste pour afficher la nouvelle recherche
+    await refetch()
+
+    // 3. Lancer le scraping
+    await scrapeNextPages({ variables: { searchId } })
+
+    setSearchingId(null)
+
+    // 4. Rafraîchir pour mettre à jour le nombre de profils
+    await refetch()
+
+    // 5. Naviguer vers les résultats
+    navigate(routes.results({ id: searchId }))
   }
 
   const formatDate = (dateString) => {
@@ -63,12 +110,14 @@ const SearchPage = () => {
             placeholder="ingénieur React, data scientist..."
             value={keywords}
             onChange={(e) => setKeywords(e.target.value)}
+            disabled={!!searchingId}
             style={{
               flex: 2,
               padding: '10px 14px',
               border: '1px solid #e5e7eb',
               borderRadius: '6px',
               fontSize: '14px',
+              opacity: searchingId ? 0.5 : 1,
             }}
           />
           <input
@@ -76,29 +125,31 @@ const SearchPage = () => {
             placeholder="Paris, Lyon, Remote..."
             value={location}
             onChange={(e) => setLocation(e.target.value)}
+            disabled={!!searchingId}
             style={{
               flex: 1,
               padding: '10px 14px',
               border: '1px solid #e5e7eb',
               borderRadius: '6px',
               fontSize: '14px',
+              opacity: searchingId ? 0.5 : 1,
             }}
           />
           <button
             type="submit"
-            disabled={!keywords}
+            disabled={!keywords || !!searchingId}
             style={{
               padding: '10px 20px',
               backgroundColor: '#2563eb',
               color: '#fff',
               border: 'none',
               borderRadius: '6px',
-              cursor: keywords ? 'pointer' : 'not-allowed',
+              cursor: keywords && !searchingId ? 'pointer' : 'not-allowed',
               fontSize: '14px',
-              opacity: keywords ? 1 : 0.5,
+              opacity: keywords && !searchingId ? 1 : 0.5,
             }}
           >
-            Rechercher
+            {searchingId ? 'Recherche...' : 'Rechercher'}
           </button>
         </form>
 
@@ -117,7 +168,7 @@ const SearchPage = () => {
             {data?.searches?.map((search) => (
               <div
                 key={search.id}
-                onClick={() => navigate(routes.results({ id: search.id }))}
+                onClick={() => !searchingId && navigate(routes.results({ id: search.id }))}
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -125,12 +176,16 @@ const SearchPage = () => {
                   padding: '16px',
                   border: '1px solid #e5e7eb',
                   borderRadius: '8px',
-                  cursor: 'pointer',
-                  backgroundColor: '#fff',
+                  cursor: searchingId ? 'default' : 'pointer',
+                  backgroundColor: search.id === searchingId ? '#eff6ff' : '#fff',
                   transition: 'background-color 0.15s',
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fff'}
+                onMouseEnter={(e) => {
+                  if (!searchingId) e.currentTarget.style.backgroundColor = '#f9fafb'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = search.id === searchingId ? '#eff6ff' : '#fff'
+                }}
               >
                 <div>
                   <span style={{ fontWeight: '500' }}>{search.keywords}</span>
@@ -141,6 +196,11 @@ const SearchPage = () => {
                   )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  {search.id === searchingId && (
+                    <span style={{ color: '#2563eb', fontSize: '14px' }}>
+                      🔄 Chargement...
+                    </span>
+                  )}
                   <span style={{ color: '#6b7280', fontSize: '14px' }}>
                     {search._count.profiles} profils
                   </span>

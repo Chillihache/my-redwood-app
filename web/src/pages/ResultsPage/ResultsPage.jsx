@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { navigate, routes } from '@redwoodjs/router'
 import { Metadata } from '@redwoodjs/web'
-import { useQuery, gql } from '@redwoodjs/web'
+import { useQuery, useMutation, gql } from '@redwoodjs/web'
+import { useApolloClient } from '@apollo/client'
 import { useAuth } from 'src/auth'
 
 const GET_PROFILES = gql`
@@ -30,64 +31,127 @@ const GET_SEARCH = gql`
   }
 `
 
+const SCRAPE = gql`
+  mutation ScrapeNextPages($searchId: Int!) {
+    scrapeNextPages(searchId: $searchId)
+  }
+`
+
+const RESET_AND_SCRAPE = gql`
+  mutation ResetAndScrape($searchId: Int!) {
+    resetAndScrape(searchId: $searchId)
+  }
+`
+
 const TAKE = 20
 
 const ResultsPage = ({ id }) => {
   const { currentUser, loading: authLoading } = useAuth()
+  const client = useApolloClient()
   const [profiles, setProfiles] = useState([])
   const [skip, setSkip] = useState(0)
   const [hasMore, setHasMore] = useState(true)
+  const [isScraping, setIsScraping] = useState(false)
+  const [isFinished, setIsFinished] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
+  const isScrolling = useRef(false)
 
   const searchId = parseInt(id)
 
   useEffect(() => {
-    if (!authLoading && !currentUser) {
-      navigate(routes.login())
-    }
+    if (!authLoading && !currentUser) navigate(routes.login())
   }, [currentUser, authLoading])
 
-  const { data: searchData } = useQuery(GET_SEARCH, {
+  const { data: searchData, refetch: refetchSearch } = useQuery(GET_SEARCH, {
     variables: { id: searchId },
   })
 
-  const { data, loading, fetchMore } = useQuery(GET_PROFILES, {
-    variables: { searchId, skip: 0, take: TAKE },
-    onCompleted: (data) => {
-      setProfiles(data.profiles)
-      setHasMore(data.profiles.length < data.profilesCount)
-    },
-  })
+  const [scrapeNextPages] = useMutation(SCRAPE)
+  const [resetAndScrape] = useMutation(RESET_AND_SCRAPE)
+
+  const fetchProfiles = async (skip) => {
+    const result = await client.query({
+      query: GET_PROFILES,
+      variables: { searchId, skip, take: TAKE },
+      fetchPolicy: 'network-only',
+    })
+    return result.data
+  }
 
   useEffect(() => {
-    const handleScroll = () => {
+    if (!searchId || authLoading || !currentUser) return
+    fetchProfiles(0).then((data) => {
+      setProfiles(data.profiles)
+      setHasMore(data.profiles.length < data.profilesCount)
+      setSkip(0)
+      setInitialLoading(false)
+    })
+  }, [searchId, authLoading, currentUser])
+
+  const handleReset = async () => {
+    isScrolling.current = false
+    setProfiles([])
+    setSkip(0)
+    setHasMore(true)
+    setIsFinished(false)
+    setIsScraping(true)
+    await resetAndScrape({ variables: { searchId } })
+    const data = await fetchProfiles(0)
+    setProfiles(data.profiles)
+    setHasMore(data.profiles.length < data.profilesCount)
+    setSkip(0)
+    await refetchSearch()
+    setIsScraping(false)
+  }
+
+  useEffect(() => {
+    const handleScroll = async () => {
       const bottom =
         window.innerHeight + window.scrollY >= document.body.offsetHeight - 200
 
-      if (bottom && hasMore && !loading) {
+      if (!bottom || isScrolling.current || isFinished) return
+
+      isScrolling.current = true
+
+      if (hasMore) {
         const newSkip = skip + TAKE
-        setSkip(newSkip)
-        fetchMore({
-          variables: { searchId, skip: newSkip, take: TAKE },
-          updateQuery: (prev, { fetchMoreResult }) => {
-            if (!fetchMoreResult) return prev
-            return {
-              ...prev,
-              profiles: [...prev.profiles, ...fetchMoreResult.profiles],
+        try {
+          const data = await fetchProfiles(newSkip)
+          const updated = [...profiles, ...data.profiles]
+          setProfiles(updated)
+          setHasMore(updated.length < data.profilesCount)
+          setSkip(newSkip)
+        } finally {
+          isScrolling.current = false
+        }
+      } else {
+        setIsScraping(true)
+        try {
+          const { data: scrapeData } = await scrapeNextPages({ variables: { searchId } })
+          const inserted = scrapeData?.scrapeNextPages ?? 0
+
+          if (inserted > 0) {
+            const data = await fetchProfiles(profiles.length)
+            if (data.profiles.length > 0) {
+              const updated = [...profiles, ...data.profiles]
+              setProfiles(updated)
+              setHasMore(updated.length < data.profilesCount)
+              setSkip(updated.length)
             }
-          },
-        }).then((result) => {
-          setProfiles((prev) => [...prev, ...result.data.profiles])
-          setHasMore(
-            profiles.length + result.data.profiles.length <
-            result.data.profilesCount
-          )
-        })
+            await refetchSearch()
+          } else {
+            setIsFinished(true)
+          }
+        } finally {
+          setIsScraping(false)
+          isScrolling.current = false
+        }
       }
     }
 
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
-  }, [hasMore, loading, skip, profiles])
+  }, [hasMore, skip, profiles, isFinished])
 
   const search = searchData?.search
 
@@ -110,6 +174,21 @@ const ResultsPage = ({ id }) => {
           >
             ← Retour
           </button>
+          <button
+            onClick={handleReset}
+            disabled={isScraping}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: isScraping ? '#f3f4f6' : '#fff',
+              border: '1px solid #e5e7eb',
+              borderRadius: '6px',
+              cursor: isScraping ? 'not-allowed' : 'pointer',
+              fontSize: '14px',
+              opacity: isScraping ? 0.5 : 1,
+            }}
+          >
+            🔄 Rafraichir
+          </button>
           <div>
             <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>
               {search?.keywords}
@@ -125,13 +204,13 @@ const ResultsPage = ({ id }) => {
           </div>
         </div>
 
-        {loading && profiles.length === 0 && (
+        {initialLoading && (
           <p style={{ color: '#6b7280' }}>Chargement des profils...</p>
         )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {profiles.map((profile) => (
-          <a
+            <a
               key={profile.id}
               href={profile.url}
               target="_blank"
@@ -169,15 +248,15 @@ const ResultsPage = ({ id }) => {
           ))}
         </div>
 
-        {loading && profiles.length > 0 && (
-          <p style={{ textAlign: 'center', color: '#6b7280', padding: '16px' }}>
-            Chargement de la suite...
+        {isScraping && (
+          <p style={{ textAlign: 'center', color: '#2563eb', padding: '16px' }}>
+            🔄 Recherche de nouveaux profils...
           </p>
         )}
 
-        {!hasMore && profiles.length > 0 && (
+        {isFinished && !isScraping && profiles.length > 0 && (
           <p style={{ textAlign: 'center', color: '#9ca3af', padding: '16px' }}>
-            Tous les profils ont été chargés ({profiles.length})
+            Tous les profils ont été chargés
           </p>
         )}
       </div>

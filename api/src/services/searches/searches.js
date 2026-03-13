@@ -1,5 +1,6 @@
 import { db } from 'src/lib/db'
 import { context } from '@redwoodjs/graphql-server'
+import { scrapeNextPages, resetAndScrape } from 'src/services/scraper/scraper'
 
 export const searches = () => {
   const currentUser = context.currentUser
@@ -44,3 +45,5 @@ export const Search = {
     return db.search.findUnique({ where: { id: root?.id } }).profiles()
   },
 }
+
+export { scrapeNextPages, resetAndScrape}

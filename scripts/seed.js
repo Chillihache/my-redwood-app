@@ -51,7 +51,7 @@ export default async () => {
 
     await db.profile.createMany({
       data: Array.from({ length: 100 }, () => ({
-        name: faker.person.fullName(),
+        name: faker.person.firstName() + ' ' + faker.person.lastName(),
         title: `${METIERS[Math.floor(Math.random() * METIERS.length)]} ${DOMAINES[Math.floor(Math.random() * DOMAINES.length)]}`,
         snippet: faker.lorem.sentence(),
         url: `https://fr.linkedin.com/in/${faker.internet.userName().toLowerCase()}`,
@@ -70,7 +70,7 @@ export default async () => {
       const user = await db.user.create({
         data: {
           email: faker.internet.email(),
-          name: faker.person.fullName(),
+          name: faker.person.firstName() + ' ' + faker.person.lastName(),
           hashedPassword,
           salt,
         },
@@ -108,7 +108,7 @@ export default async () => {
     let totalProfiles = 0
     for (const [searchId, count] of Object.entries(profilesPerSearch)) {
       const profiles = Array.from({ length: count }, () => ({
-        name: faker.person.fullName(),
+        name: faker.person.firstName() + ' ' + faker.person.lastName(),
         title: `${METIERS[Math.floor(Math.random() * METIERS.length)]} ${DOMAINES[Math.floor(Math.random() * DOMAINES.length)]}`,
         snippet: faker.lorem.sentence(),
         url: `https://fr.linkedin.com/in/${faker.internet.userName().toLowerCase()}`,
