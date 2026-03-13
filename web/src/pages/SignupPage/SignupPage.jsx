@@ -23,7 +23,6 @@ const SignupPage = () => {
     }
   }, [isAuthenticated])
 
-  // focus on username box on page load
   const usernameRef = useRef(null)
   useEffect(() => {
     usernameRef.current?.focus()

@@ -22,13 +22,11 @@ export default async () => {
   try {
     console.log('🌱 Début du seed...')
 
-    // Nettoyage de la DB
     await db.profile.deleteMany()
     await db.search.deleteMany()
     await db.user.deleteMany()
     console.log('🧹 DB nettoyée')
 
-    // Utilisateur de test
     const [hashedPassword, salt] = hashPassword('password123')
     const testUser = await db.user.create({
       data: {
@@ -40,7 +38,6 @@ export default async () => {
     })
     console.log('✅ Utilisateur de test créé (test@test.com / password123)')
 
-    // Search de test avec 100 profils pour tester le scroll infini
     const testSearch = await db.search.create({
       data: {
         keywords: 'ingénieur nucléaire',
@@ -60,10 +57,6 @@ export default async () => {
     })
     console.log('✅ Search de test créé avec 100 profils')
 
-    // Créer 5 utilisateurs fictifs
-    // ... reste du seed inchangé
-
-    // Créer 5 utilisateurs
     const users = []
     for (let i = 0; i < 5; i++) {
       const [hashedPassword, salt] = hashPassword('password123')
@@ -79,7 +72,6 @@ export default async () => {
     }
     console.log(`✅ ${users.length} utilisateurs créés`)
 
-    // Créer 100 recherches réparties entre les utilisateurs
     const searches = []
     for (let i = 0; i < 100; i++) {
       const user = users[i % users.length]
@@ -98,7 +90,6 @@ export default async () => {
     }
     console.log(`✅ ${searches.length} recherches créées`)
 
-    // Créer 1000 profils répartis aléatoirement
     const profilesPerSearch = {}
     for (let i = 0; i < 1000; i++) {
       const search = searches[Math.floor(Math.random() * searches.length)]

@@ -48,7 +48,6 @@ export async function scrapeNextPages({ searchId }) {
 
   const allResults = [...results1, ...results2]
 
-  // Si aucun résultat → on est à la fin
   if (allResults.length === 0) {
     return 0
   }

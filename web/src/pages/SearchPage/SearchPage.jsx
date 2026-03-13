@@ -55,7 +55,6 @@ const SearchPage = () => {
     e.preventDefault()
     if (!keywords) return
 
-    // 1. Créer la recherche en DB
     const { data: newSearch } = await createSearch({
       variables: {
         input: {
@@ -69,18 +68,14 @@ const SearchPage = () => {
     const searchId = newSearch.createSearch.id
     setSearchingId(searchId)
 
-    // 2. Rafraîchir la liste pour afficher la nouvelle recherche
     await refetch()
 
-    // 3. Lancer le scraping
     await scrapeNextPages({ variables: { searchId } })
 
     setSearchingId(null)
 
-    // 4. Rafraîchir pour mettre à jour le nombre de profils
     await refetch()
 
-    // 5. Naviguer vers les résultats
     navigate(routes.results({ id: searchId }))
   }
 
