@@ -26,8 +26,10 @@ async function fetchPage(keywords, location, page) {
 
 function parseProfile(item, searchId) {
   return {
-    name: item.title?.replace(/\s*[-|].*$/, '').trim() ?? 'Inconnu',
-    title: item.snippet?.split('\n')[0] ?? null,
+    name: item.title?.replace(/[-|]\s*LinkedIn\s*$/i, '').replace(/\s*[-|].*$/, '').trim() ?? 'Inconnu',
+    title: item.title?.replace(/[-|]\s*LinkedIn\s*$/i, '').includes('-')
+          ? item.title.replace(/[-|]\s*LinkedIn\s*$/i, '').split('-').slice(1).join('-').trim()
+          : item.snippet?.split('\n')[0] ?? null,
     snippet: item.snippet ?? null,
     url: item.link ?? '',
     searchId,
